@@ -12,60 +12,61 @@ namespace OthelloFrossardIzzo
         BLACK = 1
     }
 
+    public enum SIDE
+    {
+        NORD,
+        EST,
+        SUD,
+        WEST
+    }
+
     public class Node
     {
         const int BOARDSIZE_X = 9;
         const int BOARDSIZE_Y = 7;
 
-        double[,] valueCell = new double[,] {{16.16 ,-3.03  ,1.33   ,-2.67  ,2.67   ,-2.67  ,1.33   ,-3.03  ,16.16} ,
-                                            {-4.12  ,-1.81  ,-0.9   ,-0.9   ,-1.16  ,-0.9   ,-0.9   ,-1.81  ,-4.12} ,
-                                            {1.33   ,-0.9   ,0      ,0      ,0      ,0      ,0      ,-0.9   ,1.33}  ,
-                                            {-2.67  ,1.2    ,0      ,-1     ,1      ,0      ,0      ,1.2    ,-2.67} ,
-                                            {1.33   ,-0.9   ,0      ,1      ,-1     ,0      ,0      ,-0.9   ,1.33}  ,
-                                            {-4.12  ,-1.81  ,-0.9   ,-0.9   ,-1.16  ,-0.9   ,-0.9   ,-1.81  ,-4.12} ,
-                                            {16.16  ,-3.03  ,1.33   ,-2.67  ,2.67   ,-2.67  ,1.33   ,-3.03  ,16.16 } };
-
-        int whiteScore = 0;
-        int blackScore = 0;
-
-        public int flipTiles;
-
-        public Node(int[,] board, bool whiteTurn)
-        {
-            this.parent = null;
-            this.ops = new List<Node>();
-            this.currentBoard = board;
-            this._whiteTurn = whiteTurn;
-            this.possibleMove = null;
-        }
+        private int _whiteScore = 0;
+        private int _blackScore = 0;
+        private int _myState;
+        private int _enemiState;
+        private bool _myTurn;
+        private int _flipTiles;
 
         public bool GameFinish { get; set; }
 
-        public Node parent { get; set; }
-        public bool _whiteTurn { get; set; }
-        public int[,] currentBoard { get; set; }
-        public Tuple<int,int> possibleMove { get; set; }
-        public List<Node> ops;
+        private Node Parent { get; set; }
+        private int MyNumberPossibleMove { get; set; }
+        private bool WhiteTurn { get; set; }
+        private int[,] CurrentBoard { get; set; }
+        public Tuple<int, int> PossibleMove { get; set; }
+        private List<Node> Ops;
+
+        public Node(int[,] board, bool whiteTurn, int myNumberPossibleMove)
+        {
+            Parent = null;
+            Ops = new List<Node>();
+            CurrentBoard = board;
+            WhiteTurn = whiteTurn;
+            PossibleMove = null;
+            MyNumberPossibleMove = myNumberPossibleMove;
 
 
-        public Node apply(Tuple<int,int> move)
+            _myTurn = MyColor();
+            _myState = _myTurn ? 1 : 0;
+            _enemiState = _myState == 1 ? 0 : 1;
+        }
+
+
+        public Node apply(Tuple<int,int> move, int myNumberPossibleMove)
         {
             //Console.WriteLine("Possible Move : " + move);
             Node newChildren = null;
-            newChildren = new Node(currentBoard.Clone() as int[,], !_whiteTurn);
-            /*if (parent != null)
-            {
-                newChildren = new Node(currentBoard.Clone() as int[,], !whiteTurn);
-            }
-            else
-            {
-                newChildren = new Node(currentBoard.Clone() as int[,], whiteTurn);
-            }*/
-            newChildren.parent = this;
-            newChildren.possibleMove = move;
-            newChildren.PlayMove(move.Item1, move.Item2, _whiteTurn);
+            newChildren = new Node(CurrentBoard.Clone() as int[,], !WhiteTurn, myNumberPossibleMove);
+            newChildren.Parent = this;
+            newChildren.PossibleMove = move;
+            newChildren.PlayMove(move.Item1, move.Item2, WhiteTurn);
             
-            ops.Add(newChildren);
+            Ops.Add(newChildren);
             //Console.WriteLine("Children (" + move.Item1 + ", " + move.Item2 + ")");
             //newChildren.displayBoard();
             return newChildren;
@@ -73,38 +74,208 @@ namespace OthelloFrossardIzzo
 
         public double Eval()
         {
-            double value = valueCell[possibleMove.Item2, possibleMove.Item1];
+            double value = 0;
 
             if (CanBlockEnemy())
             {
-                value = 15;
+                value += 50;
             }
 
+            value += 1000 * NumberOfCorners();
+            value += 8  * CalculateMobility();
 
-            /*
-            * Si adversaire a plus de pièce
-            */
-            if (_whiteTurn && _whiteTurn != MyColor())
-            {
-                if (whiteScore == 0)
-                {
-                    value = 16;
-                }
-            }
-            if (!_whiteTurn && !_whiteTurn != MyColor())
-            {
-                if (blackScore == 0)
-                {
-                    value = 16;
-                }
-            }
+            value += 2 * WallPieces();
+
+            value += 10 * PiecesToKeep();
+            value += CalculateScore();
+            
+            value += ParityScore();
 
             return value;
+        }
+            
+
+        public double Ratio()
+        {
+            return (_whiteScore + _blackScore)/53;
+        }
+
+        public int WallPieces()
+        {
+            int counter = 0;
+
+            for (int i = 1; i < BOARDSIZE_X-2; i++)
+            {
+                if (IsDefinitif(i,0))
+                {
+                    counter += 1;
+                }
+                if (IsDefinitif(i, BOARDSIZE_Y-1))
+                {
+                    counter += 1;
+                }
+            }
+
+            for (int i = 1; i < BOARDSIZE_Y - 2; i++)
+            {
+                if (IsDefinitif(0, i))
+                {
+                    counter += 1;
+                }
+                if (IsDefinitif(BOARDSIZE_X - 1,i))
+                {
+                    counter += 1;
+                }
+            }
+
+            return counter;
+        }
+
+        public bool IsDefinitif(int x, int y)
+        {
+            for (int i = -x; i < BOARDSIZE_X - x-1; i++)
+            {
+                if (CurrentBoard[x+i, y] == -1)
+                {
+                    return false;
+                }
+            }
+
+            for (int j = -y; j < BOARDSIZE_Y - y-1; j++)
+            {
+                if (CurrentBoard[x, y + j] == -1)
+                {
+                    return false;
+                }
+            }
+
+            for (int i = -x; i < BOARDSIZE_X-x-1; i++)
+            {
+                for (int j = -y; j < BOARDSIZE_Y-y-1; j++)
+                {
+                    if (CurrentBoard[x+i, y+j] == -1)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+        
+        public SIDE IsBorder(int y, int x)
+        {
+            if (x == BOARDSIZE_X - 1)
+            {
+                return SIDE.SUD;
+            }
+            else if (x == 0)
+            {
+                return SIDE.NORD;
+            }
+            else if (y == BOARDSIZE_Y - 1)
+            {
+                return SIDE.EST;
+            }
+            else
+            {
+                return SIDE.WEST;
+            }
+        }
+
+        public int PiecesToKeep()
+        {
+            var piecesToKeep = new (int, int)[] {  (3,3) ,
+                                                    (4,4) ,
+                                                    (5,3) };
+
+            int numberCorners = 0;
+
+            for (int i = 0; i < piecesToKeep.Length; i++)
+            {
+                if (CurrentBoard[piecesToKeep[i].Item1, piecesToKeep[i].Item2] == _myState)
+                {
+                    numberCorners += 1;
+                }
+                else if (CurrentBoard[piecesToKeep[i].Item1, piecesToKeep[i].Item2] == _enemiState)
+                {
+                    numberCorners -= 1;
+                }
+            }
+
+            return numberCorners;
+
+        }
+
+        public int NumberOfCorners()
+        {
+            int numberCorners = 0;
+            var positionCorners = new(int,int)[] {  (0,0) ,
+                                                    (0,6) ,
+                                                    (8,0) ,
+                                                    (8,6) };
+
+            for(int i = 0; i < positionCorners.Length; i++)
+            {
+                if (CurrentBoard[positionCorners[i].Item1, positionCorners[i].Item2] == _myState)
+                {
+                    numberCorners += 1;
+                }
+                else if(CurrentBoard[positionCorners[i].Item1, positionCorners[i].Item2] == _enemiState)
+                {
+                    numberCorners -= 1;
+                }
+            }
+
+            return numberCorners;
+
+        }
+
+        public int ParityScore()
+        {
+            return (_blackScore + _whiteScore - 4) % 2;
+        }
+
+        public int CalculateScore()
+        {
+            if (_myState == 1)
+            {
+                if (_blackScore == 0)
+                {
+                    return int.MinValue;
+                }
+                if (_whiteScore == 0)
+                {
+                    return int.MaxValue;
+                }
+            }
+            else
+            {
+                if (_whiteScore == 0)
+                {
+                    return int.MinValue;
+                }
+                if (_blackScore == 0)
+                {
+                    return int.MaxValue;
+                }
+            }
+
+            return _whiteScore - _blackScore;
+        }
+
+        public int CalculateMobility()
+        {
+            int ownMobility = MyNumberPossibleMove-1;
+            int enemyMobility = GetPossibleMove().Count();
+            //Console.WriteLine("MY " + ownMobility + ", \t NOT MY " + enemyMobility);
+
+            return ownMobility - enemyMobility;
         }
 
         public bool CanBlockEnemy()
         {
-            if (MyColor() == _whiteTurn)
+            if (MyColor() == WhiteTurn)
             {
                 return false;
             }
@@ -114,26 +285,26 @@ namespace OthelloFrossardIzzo
         public bool MyColor()
         {
             Node node = this;
-            while (node.parent != null)
+            while (node.Parent != null)
             {
-                node = node.parent;
+                node = node.Parent;
             }
-            return node._whiteTurn;
+            return node.WhiteTurn;
         }
 
         private void computeScore()
         {
-            whiteScore = 0;
-            blackScore = 0;
-            foreach (var v in currentBoard)
+            _whiteScore = 0;
+            _blackScore = 0;
+            foreach (var v in CurrentBoard)
             {
                 if (v == (int)TileState.WHITE)
-                    whiteScore++;
+                    _whiteScore++;
                 else if (v == (int)TileState.BLACK)
-                    blackScore++;
+                    _blackScore++;
             }
-            GameFinish = ((whiteScore == 0) || (blackScore == 0) ||
-                        (whiteScore + blackScore == 63));
+            GameFinish = ((_whiteScore == 0) || (_blackScore == 0) ||
+                        (_whiteScore + _blackScore == 63));
         }
 
         public bool PlayMove(int column, int line, bool whiteTurn)
@@ -159,21 +330,21 @@ namespace OthelloFrossardIzzo
                     c = column + dCol;
                     l = line + dLine;
                     if ((c < BOARDSIZE_X) && (c >= 0) && (l < BOARDSIZE_Y) && (l >= 0)
-                        && (currentBoard[c, l] == (int)opponent))
+                        && (CurrentBoard[c, l] == (int)opponent))
                     // Verify if there is a friendly tile to "pinch" and return ennemy tiles in this direction
                     {
                         int counter = 0;
                         while (((c + dCol) < BOARDSIZE_X) && (c + dCol >= 0) &&
                                   ((l + dLine) < BOARDSIZE_Y) && ((l + dLine >= 0))
-                                   && (currentBoard[c, l] == (int)opponent)) // pour éviter les trous
+                                   && (CurrentBoard[c, l] == (int)opponent)) // pour éviter les trous
                         {
                             c += dCol;
                             l += dLine;
                             counter++;
-                            if (currentBoard[c, l] == (int)ownColor)
+                            if (CurrentBoard[c, l] == (int)ownColor)
                             {
                                 playable = true;
-                                currentBoard[column, line] = (int)ownColor;
+                                CurrentBoard[column, line] = (int)ownColor;
                                 catchDirections.Add(new Tuple<int, int, int>(dCol, dLine, counter));
                             }
                         }
@@ -190,7 +361,7 @@ namespace OthelloFrossardIzzo
                 {
                     c += v.Item1;
                     l += v.Item2;
-                    currentBoard[c, l] = (int)ownColor;
+                    CurrentBoard[c, l] = (int)ownColor;
                 }
             }
             //Console.WriteLine("CATCH DIRECTIONS:" + catchDirections.Count);
@@ -205,7 +376,7 @@ namespace OthelloFrossardIzzo
             for (int i = 0; i < BOARDSIZE_X; i++)
                 for (int j = 0; j < BOARDSIZE_Y; j++)
                 {
-                    if (IsPlayable(i, j, _whiteTurn))
+                    if (IsPlayable(i, j, WhiteTurn))
                     {
                         possibleMoves.Add(new Tuple<int, int>(i, j));
                         //Console.WriteLine("Possible : " + i + ", " + j + " Turn :" + _whiteTurn);
@@ -217,7 +388,7 @@ namespace OthelloFrossardIzzo
         public bool IsPlayable(int column, int line, bool isWhite)
         {
             //1. Verify if the tile is empty !
-            if (currentBoard[column, line] != (int)TileState.EMPTY)
+            if (CurrentBoard[column, line] != (int)TileState.EMPTY)
                 return false;
             //2. Verify if at least one adjacent tile has an opponent tile
             TileState opponent = isWhite ? TileState.BLACK : TileState.WHITE;
@@ -232,7 +403,7 @@ namespace OthelloFrossardIzzo
                     c = column + dCol;
                     l = line + dLine;
                     if ((c < BOARDSIZE_X) && (c >= 0) && (l < BOARDSIZE_Y) && (l >= 0)
-                        && (currentBoard[c, l] == (int)opponent))
+                        && (CurrentBoard[c, l] == (int)opponent))
                     // Verify if there is a friendly tile to "pinch" and return ennemy tiles in this direction
                     {
                         int counter = 0;
@@ -242,14 +413,14 @@ namespace OthelloFrossardIzzo
                             c += dCol;
                             l += dLine;
                             counter++;
-                            if (currentBoard[c, l] == (int)ownColor)
+                            if (CurrentBoard[c, l] == (int)ownColor)
                             {
                                 playable = true;
                                 break;
                             }
-                            else if (currentBoard[c, l] == (int)opponent)
+                            else if (CurrentBoard[c, l] == (int)opponent)
                                 continue;
-                            else if (currentBoard[c, l] == (int)TileState.EMPTY)
+                            else if (CurrentBoard[c, l] == (int)TileState.EMPTY)
                                 break;  //empty slot ends the search
                         }
                     }
@@ -260,10 +431,10 @@ namespace OthelloFrossardIzzo
 
         public void displayBoard(int[,] board = null)
         {
-            Console.WriteLine("Whiteturn : " + this._whiteTurn);
+            Console.WriteLine("Whiteturn : " + this.WhiteTurn);
             if (board == null)
             {
-                board = currentBoard;
+                board = CurrentBoard;
             }
             for(int line = 0; line < BOARDSIZE_Y; line++)
             {
@@ -340,7 +511,7 @@ namespace OthelloFrossardIzzo
             }
             else
             {
-                Node rootNode = new Node(theBoard.Clone() as int[,], whiteTurn);
+                Node rootNode = new Node(theBoard.Clone() as int[,], whiteTurn, possibleMoves.Count());
                 Tuple<double, Node>  result = alphabeta(rootNode, 5, 1, double.PositiveInfinity);
                 Console.WriteLine("Score " + result.Item1);
                 if (result.Item2 == null)
@@ -348,7 +519,7 @@ namespace OthelloFrossardIzzo
                     Console.WriteLine("passe le tour");
                     return new Tuple<int, int>(-1, -1);
                 }
-                return result.Item2.possibleMove;
+                return result.Item2.PossibleMove;
             }
         }
 
@@ -369,11 +540,12 @@ namespace OthelloFrossardIzzo
 
             //Console.WriteLine("Daron");
             //root.displayBoard();
-            foreach (var op in root.GetPossibleMove())
+            List<Tuple<int, int>> possibleMoves = root.GetPossibleMove();
+            foreach (var op in possibleMoves)
             {
-                Node newNode = root.apply(op);
+                Node newNode = root.apply(op, possibleMoves.Count());
                 Tuple<double, Node> valDummy = alphabeta(newNode, depth - 1, -minOrMax, optVal);
-                if(valDummy.Item1 * minOrMax > optVal * minOrMax)
+                if(valDummy.Item1 * minOrMax >= optVal * minOrMax)
                 {                    
                     optVal = valDummy.Item1;
                     optOp = newNode;
