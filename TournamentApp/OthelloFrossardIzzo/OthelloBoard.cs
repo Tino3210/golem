@@ -31,7 +31,7 @@ namespace OthelloFrossardIzzo
         private int _enemiState;
         private bool _myTurn;
 
-        public bool GameFinish { get; set; }4
+        public bool GameFinish { get; set; }
 
         private Node Parent { get; set; }
         private int MyNumberPossibleMove { get; set; }
